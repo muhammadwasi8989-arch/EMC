@@ -1,35 +1,28 @@
-FROM ubuntu:22.04
+FROM php:8.2-fpm-alpine
 
-ENV DEBIAN_FRONTEND=noninteractive
-ENV APACHE_RUN_USER=www-data
-ENV APACHE_RUN_GROUP=www-data
-ENV APACHE_LOG_DIR=/var/log/apache2
-ENV APACHE_RUN_DIR=/var/run/apache2
-ENV APACHE_LOCK_DIR=/var/lock/apache2
+# Install PHP extensions
+RUN apk add --no-cache \
+    nginx \
+    && docker-php-ext-install mysqli pdo pdo_mysql
 
-RUN apt-get update && apt-get install -y \
-    apache2 \
-    php8.1 \
-    php8.1-mysql \
-    php8.1-zip \
-    php8.1-mbstring \
-    php8.1-xml \
-    libapache2-mod-php8.1 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Nginx config
+RUN mkdir -p /run/nginx
+RUN echo 'server {
+    listen 80;
+    root /var/www/html;
+    index index.php index.html;
 
-RUN a2dismod mpm_event mpm_worker 2>/dev/null; \
-    a2enmod mpm_prefork php8.1 rewrite
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
 
-RUN echo '<VirtualHost *:80>\n\
-    DocumentRoot /var/www/html\n\
-    <Directory /var/www/html>\n\
-        AllowOverride All\n\
-        Require all granted\n\
-        Options -Indexes +FollowSymLinks\n\
-    </Directory>\n\
-</VirtualHost>' > /etc/apache2/sites-available/000-default.conf \
-    && echo "Listen 80" > /etc/apache2/ports.conf
+    location ~ \.php$ {
+        fastcgi_pass 127.0.0.1:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+}' > /etc/nginx/http.d/default.conf
 
 WORKDIR /var/www/html
 
@@ -40,4 +33,5 @@ RUN chown -R www-data:www-data /var/www/html \
 
 EXPOSE 80
 
-CMD ["/usr/sbin/apache2", "-D", "FOREGROUND"]
+# Start both php-fpm and nginx
+CMD sh -c "php-fpm -D && nginx -g 'daemon off;'"
