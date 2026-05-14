@@ -3,6 +3,6 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "apache2-foreground"
+startCommand = "sh -c \"php-fpm -D && nginx -g 'daemon off;'\""
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
