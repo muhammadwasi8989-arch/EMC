@@ -1,20 +1,33 @@
-FROM php:8.2-apache
+FROM ubuntu:22.04
 
-# Install PHP extensions
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Apache + PHP from scratch (no MPM conflict)
 RUN apt-get update && apt-get install -y \
-    libzip-dev \
-    zip \
-    unzip \
-    && docker-php-ext-install mysqli pdo pdo_mysql zip \
+    apache2 \
+    php8.1 \
+    php8.1-mysql \
+    php8.1-zip \
+    php8.1-mbstring \
+    php8.1-xml \
+    libapache2-mod-php8.1 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Fix MPM conflict
-RUN a2dismod mpm_event mpm_worker 2>/dev/null || true \
-    && a2enmod mpm_prefork
+# Enable only prefork + php (no conflict)
+RUN a2dismod mpm_event mpm_worker 2>/dev/null; \
+    a2enmod mpm_prefork php8.1 rewrite
 
-# Enable rewrite
-RUN a2enmod rewrite
+# Apache config
+RUN echo '<VirtualHost *:80>\n\
+    DocumentRoot /var/www/html\n\
+    <Directory /var/www/html>\n\
+        AllowOverride All\n\
+        Require all granted\n\
+        Options -Indexes +FollowSymLinks\n\
+    </Directory>\n\
+</VirtualHost>' > /etc/apache2/sites-available/000-default.conf \
+    && echo "Listen 80" > /etc/apache2/ports.conf
 
 WORKDIR /var/www/html
 
@@ -23,18 +36,6 @@ COPY . .
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html
 
-# Clean VirtualHost config
-RUN echo '<VirtualHost *:80>\n\
-    DocumentRoot /var/www/html\n\
-    <Directory /var/www/html>\n\
-        AllowOverride All\n\
-        Require all granted\n\
-        Options -Indexes +FollowSymLinks\n\
-    </Directory>\n\
-</VirtualHost>' > /etc/apache2/sites-available/000-default.conf
-
-RUN echo "Listen 80" > /etc/apache2/ports.conf
-
 EXPOSE 80
 
-CMD ["apache2-foreground"]
+CMD ["apache2ctl", "-D", "FOREGROUND"]
