@@ -1,13 +1,10 @@
 FROM php:8.2-fpm-alpine
 
-# Install nginx and PHP extensions
 RUN apk add --no-cache nginx \
     && docker-php-ext-install mysqli pdo pdo_mysql
 
-# Create nginx run directory
-RUN mkdir -p /run/nginx
+RUN mkdir -p /run/nginx /var/log/nginx
 
-# Write nginx config using a heredoc-safe method
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
 WORKDIR /var/www/html
@@ -19,4 +16,8 @@ RUN chown -R www-data:www-data /var/www/html \
 
 EXPOSE 80
 
-CMD sh -c "php-fpm -D && nginx -g 'daemon off;'"
+# Use a startup script
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+CMD ["/start.sh"]
